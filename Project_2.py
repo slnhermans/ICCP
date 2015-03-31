@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import time
 
 #Definition of parameters
-global n, N, J, kb, h, tau, J_eff, t_final
+global n, N, J, kb, tau, J_eff, t_final
 
 #Physical constants
 J = 1.           #Coupling constant
@@ -21,7 +21,7 @@ kb = 1.          #Boltzmann constant
 h = 0.           #External magnetic field
 dh = 0.01        #Step size in h (for h variation only)
 Tc = 0.44*kb/J   #Predictad critical temperature
-T = 10**(-10)           #Start emperature: low for T<J/
+T = 10**(-10)    #Start emperature: low for T<J/
 Tf = 10.*Tc       #Final temperature
 dT = 0.01         #Step size in temperature (for temperature variation only)
 sign = 1.         #Can be 1 or -1; determines sign of all spins in the initial matrix.
@@ -40,8 +40,11 @@ state = 1         #State of the computation: which output is wanted?
                   # 1 = magnetization with T variation
                   # 2 = magnetization as function of time
                   # 3 = energy with T variation
+TorH = 0          #For variation: are we varying T or h?
+                  # 0 = varying temperature
+                  # 1 = varying external magnetic field
 drawtime = 500   #Draw after every 'drawtime' spinflips (for state 0)
-temptime = 5*N     #Amount of time-steps after which temperature is changed
+temptime = 1*N     #Amount of time-steps after which temperature is changed
 if state == 1 or state == 3:
     t_final = int(temptime*np.floor(Tf/dT))  #Amount of time-steps (# of spins flipped)
     print("t_final=", t_final)
@@ -79,7 +82,7 @@ def M_total(S):
 ############
 #Flip one spin from i to j and see if energy gets higher/lower
 #If lower, keep it. If higher, keep it with probability P = exp(-beta(Hj-Hi))
-def spin_flip(S,T):
+def spin_flip(S,T,h):
     x, y = np.random.randint(0,n,size=2)
     E_old = -h * S[x,y] - J * S[x,y] * (S[(x+1)%n,y] + S[(x-1)%n,y] + S[x,(y+1)%n] + S[x,(y-1)%n] )
     E_new = -h * -S[x,y] - J * -S[x,y] * (S[(x+1)%n,y] + S[(x-1)%n,y] + S[x,(y+1)%n] + S[x,(y-1)%n] )
@@ -116,26 +119,30 @@ if state == 0:
     ax = plt.axes()
     data, = [plt.matshow(S, fignum=0)]
     for i in range(t_final):
-        S = spin_flip(S,T)
+        S = spin_flip(S,T,h)
         data.set_data(S)
         if i%drawtime == 0:
             plt.draw()
 
-#Variation of nett magnetization with temperature
+#Variation of nett magnetization with temperature or magnetic field
 elif state == 1:
     print("Calculating Magnetisation [T]")
     M = np.zeros((t_final/temptime), dtype = float)
-    M_T = np.zeros((t_final/temptime),dtype = float)
+    M_x = np.zeros((t_final/temptime),dtype = float)
     for i in range(t_final):
-        S = spin_flip(S,T)
+        S = spin_flip(S,T,h)
         if (i+1)%temptime == 0:
             M[i/temptime] = M_total(S)
-            M_T[i/temptime] = tau(T)
-            T += dT
+            if TorH == 0:
+                M_x[i/temptime] = tau(T)
+                T += dT
+            elif TorH == 1:
+                M_x[i/temptime] = h
+                h += dh
             print(i/temptime)
     plt.xlabel('kb T/J')
     plt.ylabel('M')
-    plt.plot(M_T,M)
+    plt.plot(M_x,M)
     plt.show()
 
 #Plot magnetization as a function of time
@@ -143,7 +150,7 @@ elif state ==2:
     print("Calculating Magnetisation [time]")
     M = np.zeros((t_final/N), dtype = float)
     for i in range(t_final):
-        S = spin_flip(S,T)
+        S = spin_flip(S,T,h)
         if i%10*N==0:
             M[i/N]=M_total(S)
     plt.plot(M)
@@ -155,17 +162,19 @@ elif state ==2:
 elif state == 3:
     print("Calculating Total energy [T]")
     E = np.zeros((t_final/temptime), dtype = float)
-    E_T = np.zeros((t_final/temptime),dtype = float)
+    E_x = np.zeros((t_final/temptime),dtype = float)
     for i in range(t_final):
-        S = spin_flip(S,T)
-        if (i+1)%temptime == 0:
-            E[i/temptime] = E_total(S)
-            E_T[i/temptime] = tau(T)
+        S = spin_flip(S,T,h)
+        if TorH == 0:
+            E_x[i/temptime] = tau(T)
             T += dT
-            print(i/temptime)
+        elif TorH == 1:
+            E_x[i/temptime] = h
+            h += dh
+        print(i/temptime)
     plt.xlabel('kb T/J')
     plt.ylabel('E')
-    plt.plot(E_T,E)
+    plt.plot(E_x,E)
     plt.show()   
 
 #Plot the specific heat as a function of reduced temperature
