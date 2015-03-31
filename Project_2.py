@@ -35,7 +35,7 @@ def J_eff(T):
 #Computational parameters
 n = 20           #Number of spin sites in one direction
 N = n**2         #Number of spin sites
-state = 1         #State of the computation: which output is wanted?
+state = 6         #State of the computation: which output is wanted?
                   # 0 = visualization
                   # 1 = magnetization with T variation
                   # 2 = magnetization as function of time
@@ -99,9 +99,19 @@ def spin_flip(S,T,h):
 #Flip one spin from -1 to 1 and see if energy gets higher/lower
 #If lower, keep it. If higher, keep it with probability P = exp(-beta(Hj-Hi))
 def spin_flip_wolff(S,T,h):
-    InCluster = np.zeros((n,n),dtype = int) #Matrix that says for every analog in S if it is in the cluster
+    Cluster = np.zeros((n,n),dtype = int) #Matrix that says for every analog in S if it is in the cluster
     x, y = np.random.randint(0,n,size=2)
-    return InCluster
+    #First (random) spin is added to the cluster
+    Cluster[x,y] = 1
+    #With a chance P, perimeter spins are added to the cluster
+    P = 1 - np.exp(-2.*J/(kb*T))
+    
+    #Perimeter spins are added to the cluster or not
+    for [a, b] in [ [1,0], [-1,0], [0,1], [0,-1] ]:
+        if Cluster[(x+a)%n,y+b] == 0: #Only test for coupling if spin is not yet coupled
+            Cluster[(x+a)%n,y+b] = np.random.choice([0,1],p=[1-P, P])
+    return Cluster
+C = spin_flip_wolff(S_init_rand,T,h)
 def Wolff_growth(x, y, InCluster):
     spin_flip(S,T,h)
     return S
