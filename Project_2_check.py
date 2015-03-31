@@ -80,7 +80,7 @@ def M_total(S):
     return M_total
 
 ############
-#Flip one spin from i to j and see if energy gets higher/lower
+#Flip one spin from -1 to 1 and see if energy gets higher/lower
 #If lower, keep it. If higher, keep it with probability P = exp(-beta(Hj-Hi))
 def spin_flip(S,T,h):
     x, y = np.random.randint(0,n,size=2)
@@ -93,6 +93,21 @@ def spin_flip(S,T,h):
         P = np.exp(-dE/(kb*T))
         S[x,y] = S[x,y] * np.random.choice([-1,1],p=[P, 1-P])
     return S
+
+#################################################################################
+#################################################################################
+#Flip one spin from -1 to 1 and see if energy gets higher/lower
+#If lower, keep it. If higher, keep it with probability P = exp(-beta(Hj-Hi))
+def spin_flip_wolff(S,T,h):
+    InCluster = np.zeros((n,n),dtype = int) #Matrix that says for every analog in S if it is in the cluster
+    x, y = np.random.randint(0,n,size=2)
+    return InCluster
+def Wolff_growth(x, y, InCluster):
+    spin_flip(S,T,h)
+    return S
+#################################################################################
+#################################################################################
+
 
 #Calculate the specific heat
 
@@ -178,6 +193,30 @@ elif state == 3:
     plt.show()   
 
 #Plot the specific heat as a function of reduced temperature
+#Plot the specific heat as a function of reduced temperature
+elif state == 4:
+    print("Calculating Specific heat [T]")
+    E_T = np.zeros((t_final/temptime),dtype = float)
+    C = np.zeros((t_final/temptime),dtype = float)
+    E_avg = 0
+    E2_avg = 0
+    for i in range(t_final):
+        S = spin_flip(S,T)
+        dE = E_total(S)
+        E_avg += dE
+        E2_avg += dE**(2)
+        if (i+1)%temptime == 0:
+            fluc_E2 = E2_avg/temptime - (E_avg/temptime)**2
+            E_T[i/temptime] = tau(T)
+            C[i/temptime]= fluc_E2/(kb*E_T[i/temptime])
+            T += dT
+            E_avg = 0
+            E2_avg = 0
+            print(i/temptime)
+    plt.xlabel('kb T/J')
+    plt.ylabel('C')
+    plt.plot(E_T,C)
+    plt.show()  
 
 #Measure stoptime
 stoptime = time.clock() - starttime
