@@ -20,12 +20,9 @@ J = 1.           #Coupling constant
 kb = 1.          #Boltzmann constant
 h = 0.           #External magnetic field
 Tc = 0.44*kb/J   #Predictad critical temperature
-<<<<<<< HEAD
-T =2.*Tc           #Temperature: low for T<J/4
-=======
-T = Tc           #Temperature: low for T<J/4
->>>>>>> origin/master
-dT = 0.03         #Step size in temperature (for temperature variation only)
+T = 10**(-10)           #Start emperature: low for T<J/
+Tf = 10.*Tc       #Final temperature
+dT = 0.01         #Step size in temperature (for temperature variation only)
 def tau(T):
     tau = kb*T/J     #Reduced temperature
     return tau
@@ -36,29 +33,20 @@ def J_eff(T):
 #Computational parameters
 n = 20           #Number of spin sites in one direction
 N = n**2         #Number of spin sites
-<<<<<<< HEAD
-state = 1        #State of the computation: which output is wanted?
-                 # 0 = visualization
-                 # 1 = magnetization with T variation
-drawtime = 500   #Draw after every 'drawtime' spinflips (for state 0)
-temptime = 100*N     #Amount of time-steps after which temperature is changed
-if state == 1:
-    t_final = int(temptime*np.floor(T/dT))  #Amount of time-steps (# of spins flipped)
-=======
-state = 2         #State of the computation: which output is wanted?
+state = 1         #State of the computation: which output is wanted?
                   # 0 = visualization
                   # 1 = magnetization with T variation
                   # 2 = magnetization as function of time
-drawtime = 1000   #Draw after every 'drawtime' spinflips (for state 0)
-temptime = 3*N     #Amount of time-steps after which temperature is changed
-if state == 1:
-    t_final = int(temptime*np.floor(T/dT))  #Amount of time-steps (# of spins flipped)
+                  # 3 = energy with T variation
+drawtime = 500   #Draw after every 'drawtime' spinflips (for state 0)
+temptime = 5*N     #Amount of time-steps after which temperature is changed
+if state == 1 or state == 3:
+    t_final = int(temptime*np.floor(Tf/dT))  #Amount of time-steps (# of spins flipped)
     print("t_final=", t_final)
 elif state == 2:
     t_final = 1000*N   # Number of MCS steps
->>>>>>> origin/master
 else:
-    t_final = 100000 #Amount of time-steps (# of spins flipped)
+    t_final = 20000 #Amount of time-steps (# of spins flipped)
 
 #Fill an array uniform random with up and down (-1 and 1) spins
 S_init = np.random.choice([-1,1],size=(n,n),p=[0.5,0.5])
@@ -116,11 +104,7 @@ def crit_exp(x, y, alpha):
 ###############################################################################
 
 S = S_init #Initiate the data
-<<<<<<< HEAD
-
-=======
 print("start")
->>>>>>> origin/master
 #Visualization of te spin matrix
 if state == 0:
     plt.ion() # Set plot to animated
@@ -135,47 +119,24 @@ if state == 0:
 
 #Variation of nett magnetization with temperature
 elif state == 1:
-<<<<<<< HEAD
-=======
-    print("Calculating Magnetisation")
->>>>>>> origin/master
+    print("Calculating Magnetisation [T]")
     M = np.zeros((t_final/temptime), dtype = float)
     M_T = np.zeros((t_final/temptime),dtype = float)
     for i in range(t_final):
         S = spin_flip(S,T)
         if (i+1)%temptime == 0:
             M[i/temptime] = M_total(S)
-            M_T[i/temptime] = T
-            T -= dT
-    plt.xlabel('T[K]')
+            M_T[i/temptime] = tau(T)
+            T += dT
+            print(i/temptime)
+    plt.xlabel('kb T/J')
     plt.ylabel('M')
     plt.plot(M_T,M)
     plt.show()
 
-<<<<<<< HEAD
-#Variation of total energy with temperature
-elif state == 3:
-    E = np.zeros((t_final/temptime), dtype = float)
-    E_T = np.zeros((t_final/temptime),dtype = float)
-    for i in range(t_final):
-        S = spin_flip(S,T)
-        if (i+1)%temptime == 0:
-            E[i/temptime] = E_total(S)
-            E_T[i/temptime] = T
-            T -= dT
-    plt.xlabel('T[K]')
-    plt.ylabel('E')
-    plt.plot(E_T,E)
-    plt.show()
-
-#Plot magnetization as a function of k_b*T/J
-
-#Plot magnetization as a function of time
-=======
-#Plot magnetization as a function of k_b*T/J
-
 #Plot magnetization as a function of time
 elif state ==2:
+    print("Calculating Magnetisation [time]")
     M = np.zeros((t_final/N), dtype = float)
     for i in range(t_final):
         S = spin_flip(S,T)
@@ -183,18 +144,28 @@ elif state ==2:
             M[i/N]=M_total(S)
     plt.plot(M)
     plt.xlabel("MCS steps")
-    plt.ylabel("M")
+    plt.ylabel("E")
     plt.show()
             
-   
->>>>>>> origin/master
+#Variation of total energy with temperature
+elif state == 3:
+    print("Calculating Total energy [T]")
+    E = np.zeros((t_final/temptime), dtype = float)
+    E_T = np.zeros((t_final/temptime),dtype = float)
+    for i in range(t_final):
+        S = spin_flip(S,T)
+        if (i+1)%temptime == 0:
+            E[i/temptime] = E_total(S)
+            E_T[i/temptime] = tau(T)
+            T += dT
+            print(i/temptime)
+    plt.xlabel('kb T/J')
+    plt.ylabel('E')
+    plt.plot(E_T,E)
+    plt.show()   
 
 #Plot the specific heat as a function of reduced temperature
 
 #Measure stoptime
 stoptime = time.clock() - starttime
-<<<<<<< HEAD
 print(stoptime)
-=======
-print(stoptime)
->>>>>>> origin/master
