@@ -44,7 +44,7 @@ TorH = 0          #For variation: are we varying T or h?
                   # 0 = varying temperature
                   # 1 = varying external magnetic field
 drawtime = 500   #Draw after every 'drawtime' spinflips (for state 0)
-temptime = 1*N     #Amount of time-steps after which temperature is changed
+temptime = 5*N     #Amount of time-steps after which temperature is changed
 if state == 1 or state == 3:
     t_final = int(temptime*np.floor(Tf/dT))  #Amount of time-steps (# of spins flipped)
     print("t_final=", t_final)
@@ -80,7 +80,7 @@ def M_total(S):
     return M_total
 
 ############
-#Flip one spin from i to j and see if energy gets higher/lower
+#Flip one spin from -1 to 1 and see if energy gets higher/lower
 #If lower, keep it. If higher, keep it with probability P = exp(-beta(Hj-Hi))
 def spin_flip(S,T,h):
     x, y = np.random.randint(0,n,size=2)
@@ -93,6 +93,21 @@ def spin_flip(S,T,h):
         P = np.exp(-dE/(kb*T))
         S[x,y] = S[x,y] * np.random.choice([-1,1],p=[P, 1-P])
     return S
+
+#################################################################################
+#################################################################################
+#Flip one spin from -1 to 1 and see if energy gets higher/lower
+#If lower, keep it. If higher, keep it with probability P = exp(-beta(Hj-Hi))
+def spin_flip_wolff(S,T,h):
+    InCluster = np.zeros((n,n),dtype = int) #Matrix that says for every analog in S if it is in the cluster
+    x, y = np.random.randint(0,n,size=2)
+    return InCluster
+def Wolff_growth(x, y, InCluster):
+    spin_flip(S,T,h)
+    return S
+#################################################################################
+#################################################################################
+
 
 #Calculate the specific heat
 
