@@ -19,10 +19,12 @@ global n, N, J, kb, h, tau, J_eff, t_final
 J = 1.           #Coupling constant
 kb = 1.          #Boltzmann constant
 h = 0.           #External magnetic field
+dh = 0.01        #Step size in h (for h variation only)
 Tc = 0.44*kb/J   #Predictad critical temperature
 T = 10**(-10)           #Start emperature: low for T<J/
 Tf = 10.*Tc       #Final temperature
 dT = 0.01         #Step size in temperature (for temperature variation only)
+sign = 1.         #Can be 1 or -1; determines sign of all spins in the initial matrix.
 def tau(T):
     tau = kb*T/J     #Reduced temperature
     return tau
@@ -49,7 +51,8 @@ else:
     t_final = 20000 #Amount of time-steps (# of spins flipped)
 
 #Fill an array uniform random with up and down (-1 and 1) spins
-S_init = np.random.choice([-1,1],size=(n,n),p=[0.5,0.5])
+S_init_rand = np.random.choice([-1,1],size=(n,n),p=[0.5,0.5])
+S_init = sign*np.ones((n,n),dtype = float)
 
 #Measure the start time
 starttime = time.clock()
@@ -107,6 +110,7 @@ S = S_init #Initiate the data
 print("start")
 #Visualization of te spin matrix
 if state == 0:
+    S = S_init_rand
     plt.ion() # Set plot to animated
     #Make the plot
     ax = plt.axes()
