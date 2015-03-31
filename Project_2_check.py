@@ -20,7 +20,7 @@ J = 1.           #Coupling constant
 kb = 1.          #Boltzmann constant
 h = 0.           #External magnetic field
 Tc = 0.44*kb/J   #Predictad critical temperature
-T =2.*Tc           #Temperature: low for T<J/4
+T = 2.*Tc           #Temperature: low for T<J/4
 dT = 0.03         #Step size in temperature (for temperature variation only)
 def tau(T):
     tau = kb*T/J     #Reduced temperature
@@ -70,16 +70,17 @@ def M_total(S):
 ############
 #Flip one spin from i to j and see if energy gets higher/lower
 #If lower, keep it. If higher, keep it with probability P = exp(-beta(Hj-Hi))
-def spin_flip(S,T):
+def spin_flip(S,P):
     x, y = np.random.randint(0,n,size=2)
     E_old = -h * S[x,y] - J * S[x,y] * (S[(x+1)%n,y] + S[(x-1)%n,y] + S[x,(y+1)%n] + S[x,(y-1)%n] )
     E_new = -h * -S[x,y] - J * -S[x,y] * (S[(x+1)%n,y] + S[(x-1)%n,y] + S[x,(y+1)%n] + S[x,(y-1)%n] )
     dE = E_new - E_old
+    
     if dE <= 0:
         S[x,y] = -S[x,y]
     else:
-        P = np.exp(-dE/(kb*T))
-        S[x,y] = S[x,y] * np.random.choice([-1,1],p=[P, 1-P])
+        p = P[int((dE-4)*0.25)]
+        S[x,y] = S[x,y] * np.random.choice([-1,1],p=[p, 1-p])
     return S
 
 #Calculate the specific heat
@@ -115,12 +116,14 @@ if state == 0:
 elif state == 1:
     M = np.zeros((t_final/temptime), dtype = float)
     M_T = np.zeros((t_final/temptime),dtype = float)
+    P = [np.exp(-4./(kb*T)), np.exp(-8./(kb*T))]
     for i in range(t_final):
-        S = spin_flip(S,T)
+        S = spin_flip(S,P)
         if (i+1)%temptime == 0:
             M[i/temptime] = M_total(S)
             M_T[i/temptime] = T
             T -= dT
+            P = [np.exp(-4./(kb*T)), np.exp(-8./(kb*T))]
     plt.xlabel('T[K]')
     plt.ylabel('M')
     plt.plot(M_T,M)
@@ -130,15 +133,17 @@ elif state == 1:
 elif state == 3:
     E = np.zeros((t_final/temptime), dtype = float)
     E_T = np.zeros((t_final/temptime),dtype = float)
+    P = [np.exp(-4./(kb*T)), np.exp(-8./(kb*T))]
     for i in range(t_final):
-        S = spin_flip(S,T)
+        S = spin_flip(S,P)
         if (i+1)%temptime == 0:
             E[i/temptime] = E_total(S)
             E_T[i/temptime] = T
             T -= dT
+            P = [np.exp(-4./(kb*T)), np.exp(-8./(kb*T))]
     plt.xlabel('T[K]')
-    plt.ylabel('E')
-    plt.plot(E_T,E)
+    plt.ylabel('M')
+    plt.plot(M_T,M)
     plt.show()
 
 #Plot magnetization as a function of k_b*T/J
