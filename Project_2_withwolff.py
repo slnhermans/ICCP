@@ -1,3 +1,4 @@
+
 #Delft University of Technology
 #International Course in Computational Physics
 #Assignment 2: Ising model
@@ -33,9 +34,9 @@ def J_eff(T):
     return(J_eff)
     
 #Computational parameters
-n = 64           #Number of spin sites in one direction
+n = 100           #Number of spin sites in one direction
 N = n**2         #Number of spin sites
-state = 0         #State of the computation: which output is wanted?
+state = 1         #State of the computation: which output is wanted?
                   # 0 = visualization
                   # 1 = magnetization with T variation
                   # 2 = magnetization as function of time
@@ -43,7 +44,8 @@ state = 0         #State of the computation: which output is wanted?
 TorH = 0          #For variation: are we varying T or h?
                   # 0 = varying temperature
                   # 1 = varying external magnetic field
-drawtime = 2500   #Draw after every 'drawtime' spinflips (for state 0)
+wolff = 0         # 1 for using the Wolff algorithm; 0 for not using it.
+drawtime = 500   #Draw after every 'drawtime' spinflips (for state 0)
 temptime = 5*N     #Amount of time-steps after which temperature is changed
 if state == 1 or state == 3:
     t_final = int(temptime*np.floor(Tf/dT))  #Amount of time-steps (# of spins flipped)
@@ -51,7 +53,7 @@ if state == 1 or state == 3:
 elif state == 2:
     t_final = 1000*N   # Number of MCS steps
 else:
-    t_final = 500000 #Amount of time-steps (# of spins flipped)
+    t_final = 20000 #Amount of time-steps (# of spins flipped)
 
 #Fill an array uniform random with up and down (-1 and 1) spins
 S_init_rand = np.random.choice([-1,1],size=(n,n),p=[0.5,0.5])
@@ -113,9 +115,9 @@ def spin_flip_wolff(S,T,h):
     while (not (not ClusterBndry)) and np.any(Cluster == 0) :
         for [x, y] in ClusterBndry:
             for [a, b] in [ [1,0], [-1,0], [0,1], [0,-1] ]:
-                if Cluster[(x+a)%n,y+b] == 0: #Only test for coupling if spin is not yet coupled
-                    Cluster[(x+a)%n,y+b] = np.random.choice([0,1],p=[1-P, P])
-                    if Cluster[(x+a)%n,y+b] == 1: #Add new spins to cluster boundary
+                if Cluster[(x+a)%n,(y+b)%n] == 0: #Only test for coupling if spin is not yet coupled
+                    Cluster[(x+a)%n,(y+b)%n] = np.random.choice([0,1],p=[1-P, P])
+                    if Cluster[(x+a)%n,(y+b)%n] == 1: #Add new spins to cluster boundary
                         NewClusterBndry.append([(x+a)%n,y+b])
             l += 1 #Advance counter
             if l == len(ClusterBndry): #When all old perimeter points are checked, advance to new perimeter
@@ -123,7 +125,7 @@ def spin_flip_wolff(S,T,h):
                 NewClusterBndry = [ ]
                 l = 0
     S[Cluster == 1] = -S[Cluster == 1] #Flip the whole cluster
-    return S, Cluster
+    return S
 
 #################################################################################
 #################################################################################
@@ -154,7 +156,10 @@ if state == 0:
     ax = plt.axes()
     data, = [plt.matshow(S, fignum=0)]
     for i in range(t_final):
-        S = spin_flip(S,T,h)
+        if wolff == 1:
+            S = spin_flip_wolff(S,T,h)
+        else:    
+            S = spin_flip(S,T,h)
         data.set_data(S)
         if i%drawtime == 0:
             plt.draw()
@@ -165,7 +170,10 @@ elif state == 1:
     M = np.zeros((t_final/temptime), dtype = float)
     M_x = np.zeros((t_final/temptime),dtype = float)
     for i in range(t_final):
-        S = spin_flip(S,T,h)
+        if wolff == 1:
+            S = spin_flip_wolff(S,T,h)
+        else:    
+            S = spin_flip(S,T,h)
         if (i+1)%temptime == 0:
             M[i/temptime] = M_total(S)
             if TorH == 0:
@@ -185,7 +193,10 @@ elif state ==2:
     print("Calculating Magnetisation [time]")
     M = np.zeros((t_final/N), dtype = float)
     for i in range(t_final):
-        S = spin_flip(S,T,h)
+        if wolff == 1:
+            S = spin_flip_wolff(S,T,h)
+        else:    
+            S = spin_flip(S,T,h)
         if i%10*N==0:
             M[i/N]=M_total(S)
     plt.plot(M)
@@ -199,7 +210,10 @@ elif state == 3:
     E = np.zeros((t_final/temptime), dtype = float)
     E_x = np.zeros((t_final/temptime),dtype = float)
     for i in range(t_final):
-        S = spin_flip(S,T,h)
+        if wolff == 1:
+            S = spin_flip_wolff(S,T,h)
+        else:    
+            S = spin_flip(S,T,h)
         if TorH == 0:
             E_x[i/temptime] = tau(T)
             T += dT
