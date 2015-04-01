@@ -21,7 +21,7 @@ kb = 1.          #Boltzmann constant
 h = 0.           #External magnetic field
 dh = 0.01        #Step size in h (for h variation only)
 Tc = 0.44*kb/J   #Predictad critical temperature
-T = 10**(-10)    #Start emperature: low for T<J/
+T = 5.    #Start emperature: low for T<J/
 Tf = 10.*Tc       #Final temperature
 dT = 0.01         #Step size in temperature (for temperature variation only)
 sign = 1.         #Can be 1 or -1; determines sign of all spins in the initial matrix.
@@ -105,16 +105,26 @@ def spin_flip_wolff(S,T,h):
     Cluster[x,y] = 1
     #With a chance P, perimeter spins are added to the cluster
     P = 1 - np.exp(-2.*J/(kb*T))
-    
+    #Initialize the cluster boundary and the new one
+    ClusterBndry = [ [x, y] ]
+    NewClusterBndry = [ ]
     #Perimeter spins are added to the cluster or not
-    for [a, b] in [ [1,0], [-1,0], [0,1], [0,-1] ]:
-        if Cluster[(x+a)%n,y+b] == 0: #Only test for coupling if spin is not yet coupled
-            Cluster[(x+a)%n,y+b] = np.random.choice([0,1],p=[1-P, P])
-    return Cluster
+    l = 0 #Counter
+    while (not (not ClusterBndry)) and np.any(Cluster == 0) :
+        for [x, y] in ClusterBndry:
+            for [a, b] in [ [1,0], [-1,0], [0,1], [0,-1] ]:
+                if Cluster[(x+a)%n,y+b] == 0: #Only test for coupling if spin is not yet coupled
+                    Cluster[(x+a)%n,y+b] = np.random.choice([0,1],p=[1-P, P])
+                    if Cluster[(x+a)%n,y+b] == 1: #Add new spins to cluster boundary
+                        NewClusterBndry.append([(x+a)%n,y+b])
+            l += 1 #Advance counter
+            if l == len(ClusterBndry): #When all old perimeter points are checked, advance to new perimeter
+                ClusterBndry = NewClusterBndry
+                NewClusterBndry = [ ]
+                l = 0
+    S[Cluster == 1] = -S[Cluster == 1] #Flip the whole cluster
+    return S, Cluster
 C = spin_flip_wolff(S_init_rand,T,h)
-def Wolff_growth(x, y, InCluster):
-    spin_flip(S,T,h)
-    return S
 #################################################################################
 #################################################################################
 
