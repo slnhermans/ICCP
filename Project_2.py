@@ -21,9 +21,9 @@ kb = 1.          #Boltzmann constant
 h = 0.           #External magnetic field
 dh = 0.01        #Step size in h (for h variation only)
 Tc = 0.44*kb/J   #Predictad critical temperature
-T = 2.    #Start emperature: low for T<J/
+T = 0.01    #Start emperature: low for T<J/
 Tf = 10.*Tc       #Final temperature
-dT = 0.01         #Step size in temperature (for temperature variation only)
+dT = 0.1         #Step size in temperature (for temperature variation only)
 sign = 1.         #Can be 1 or -1; determines sign of all spins in the initial matrix.
 def tau(T):
     tau = kb*T/J     #Reduced temperature
@@ -33,19 +33,21 @@ def J_eff(T):
     return(J_eff)
     
 #Computational parameters
-n = 64           #Number of spin sites in one direction
+n = 20           #Number of spin sites in one direction
 N = n**2         #Number of spin sites
-state = 0         #State of the computation: which output is wanted?
+state = 5         #State of the computation: which output is wanted?
                   # 0 = visualization
                   # 1 = magnetization with T variation
                   # 2 = magnetization as function of time
                   # 3 = energy with T variation
+                  # 4 = Specific heat with T variation
+                  # 5 = Magnetic Susceptibility 
 TorH = 0          #For variation: are we varying T or h?
                   # 0 = varying temperature
                   # 1 = varying external magnetic field
 drawtime = 2500   #Draw after every 'drawtime' spinflips (for state 0)
-temptime = 5*N     #Amount of time-steps after which temperature is changed
-if state == 1 or state == 3:
+temptime = 5*N     #Amount of time-steps after which temperature is changed (relaxtion time)
+if state == 1 or state == 3 or state == 5 or state == 4:
     t_final = int(temptime*np.floor(Tf/dT))  #Amount of time-steps (# of spins flipped)
     print("t_final=", t_final)
 elif state == 2:
@@ -92,7 +94,8 @@ def spin_flip(S,T,h):
     else:
         P = np.exp(-dE/(kb*T))
         S[x,y] = S[x,y] * np.random.choice([-1,1],p=[P, 1-P])
-    return S
+    dM = S[x,y]/N
+    return S, dE, dM
 
 #################################################################################
 #################################################################################
@@ -154,7 +157,7 @@ if state == 0:
     ax = plt.axes()
     data, = [plt.matshow(S, fignum=0)]
     for i in range(t_final):
-        S = spin_flip(S,T,h)
+        S = spin_flip(S,T,h)[0]
         data.set_data(S)
         if i%drawtime == 0:
             plt.draw()
@@ -165,7 +168,7 @@ elif state == 1:
     M = np.zeros((t_final/temptime), dtype = float)
     M_x = np.zeros((t_final/temptime),dtype = float)
     for i in range(t_final):
-        S = spin_flip(S,T,h)
+        S = spin_flip(S,T,h)[0]
         if (i+1)%temptime == 0:
             M[i/temptime] = M_total(S)
             if TorH == 0:
@@ -185,7 +188,7 @@ elif state ==2:
     print("Calculating Magnetisation [time]")
     M = np.zeros((t_final/N), dtype = float)
     for i in range(t_final):
-        S = spin_flip(S,T,h)
+        S = spin_flip(S,T,h)[0]
         if i%10*N==0:
             M[i/N]=M_total(S)
     plt.plot(M)
@@ -199,7 +202,7 @@ elif state == 3:
     E = np.zeros((t_final/temptime), dtype = float)
     E_x = np.zeros((t_final/temptime),dtype = float)
     for i in range(t_final):
-        S = spin_flip(S,T,h)
+        S = spin_flip(S,T,h)[0]
         if TorH == 0:
             E_x[i/temptime] = tau(T)
             T += dT
@@ -212,31 +215,62 @@ elif state == 3:
     plt.plot(E_x,E)
     plt.show()   
 
-#Plot the specific heat as a function of reduced temperature
+
 #Plot the specific heat as a function of reduced temperature
 elif state == 4:
     print("Calculating Specific heat [T]")
     E_T = np.zeros((t_final/temptime),dtype = float)
     C = np.zeros((t_final/temptime),dtype = float)
+    E_init=E_total(S)
     E_avg = 0
     E2_avg = 0
     for i in range(t_final):
-        S = spin_flip(S,T)
-        dE = E_total(S)
-        E_avg += dE
-        E2_avg += dE**(2)
+        S, dE, dM = spin_flip(S,T,h)
+        E_avg += (dE+E_init)
+        E2_avg += (dE+E_init)**(2)
         if (i+1)%temptime == 0:
             fluc_E2 = E2_avg/temptime - (E_avg/temptime)**2
             E_T[i/temptime] = tau(T)
-            C[i/temptime]= fluc_E2/(kb*E_T[i/temptime])
+            C[i/temptime]= fluc_E2/(kb*(E_T[i/temptime])**2)
             T += dT
-            E_avg = 0
+            E_init = E_avg/temptime
             E2_avg = 0
+            E_avg = 0
             print(i/temptime)
+    plt.title("Specific heat as a function of reduced Temperature")
     plt.xlabel('kb T/J')
     plt.ylabel('C')
     plt.plot(E_T,C)
-    plt.show()  
+    plt.show()
+
+# Calculate the Magnetic Susceptibility as a function of temperature
+elif state == 5:
+    print("Calculating Magnetic Susceptibility")
+    M_T = np.zeros((t_final/temptime),dtype = float)
+    Xi = np.zeros((t_final/temptime),dtype = float)
+    M_init=M_total(S)
+    M_avg = 0
+    M2_avg = 0
+    for i in range(t_final):
+        S, dE, dM = spin_flip(S,T,h)
+        M_avg += (dM+M_init)
+        M2_avg += (dM+M_init)**(2)
+        if (i+1)%temptime == 0:
+            fluc_M2 = M2_avg/temptime - (M_avg/temptime)**2
+            M_T[i/temptime] = T
+            Xi[i/temptime]= fluc_M2/(kb*T)
+            T += dT
+            M_init = M_avg/temptime
+            M2_avg = 0
+            M_avg = 0
+            print(i/temptime)
+    plt.title("Magnetic Susceptibility as temperature")
+    plt.xlabel('T')
+    plt.ylabel('Xi')
+    plt.plot(M_T,Xi)
+    plt.show()
+
+# Calculate the the correlation length as a function of temperature
 
 #Measure stoptime
 stoptime = time.clock() - starttime
