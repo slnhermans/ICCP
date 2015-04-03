@@ -1,4 +1,3 @@
-
 #Delft University of Technology
 #International Course in Computational Physics
 #Assignment 2: Ising model
@@ -12,6 +11,8 @@ import numpy as np
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 import time
+import sys
+sys.setrecursionlimit(10000)
 
 #Definition of parameters
 global n, N, J, kb, tau, J_eff, t_final
@@ -22,7 +23,7 @@ kb = 1.          #Boltzmann constant
 h = 0.           #External magnetic field
 dh = 0.01        #Step size in h (for h variation only)
 Tc = 0.44*kb/J   #Predictad critical temperature
-T = 2.    #Start emperature: low for T<J/
+T = 1.5    #Start emperature: low for T<J/
 Tf = 10.*Tc       #Final temperature
 dT = 0.01         #Step size in temperature (for temperature variation only)
 sign = 1.         #Can be 1 or -1; determines sign of all spins in the initial matrix.
@@ -34,9 +35,9 @@ def J_eff(T):
     return(J_eff)
     
 #Computational parameters
-n = 100           #Number of spin sites in one direction
+n = 32           #Number of spin sites in one direction
 N = n**2         #Number of spin sites
-state = 1         #State of the computation: which output is wanted?
+state = 0         #State of the computation: which output is wanted?
                   # 0 = visualization
                   # 1 = magnetization with T variation
                   # 2 = magnetization as function of time
@@ -44,8 +45,8 @@ state = 1         #State of the computation: which output is wanted?
 TorH = 0          #For variation: are we varying T or h?
                   # 0 = varying temperature
                   # 1 = varying external magnetic field
-wolff = 0         # 1 for using the Wolff algorithm; 0 for not using it.
-drawtime = 500   #Draw after every 'drawtime' spinflips (for state 0)
+wolff = 1         # 1 for using the Wolff algorithm; 0 for not using it.
+drawtime = 1   #Draw after every 'drawtime' spinflips (for state 0)
 temptime = 5*N     #Amount of time-steps after which temperature is changed
 if state == 1 or state == 3:
     t_final = int(temptime*np.floor(Tf/dT))  #Amount of time-steps (# of spins flipped)
@@ -53,7 +54,7 @@ if state == 1 or state == 3:
 elif state == 2:
     t_final = 1000*N   # Number of MCS steps
 else:
-    t_final = 20000 #Amount of time-steps (# of spins flipped)
+    t_final = 2000 #Amount of time-steps (# of spins flipped)
 
 #Fill an array uniform random with up and down (-1 and 1) spins
 S_init_rand = np.random.choice([-1,1],size=(n,n),p=[0.5,0.5])
@@ -100,33 +101,29 @@ def spin_flip(S,T,h):
 #################################################################################
 #Flip one spin from -1 to 1 and see if energy gets higher/lower
 #If lower, keep it. If higher, keep it with probability P = exp(-beta(Hj-Hi))
+#If lower, keep it. If higher, keep it with probability P = exp(-beta(Hj-Hi))
+def growcluster(x, y, S, Cluster,P):
+    S[x,y] = -S[x,y] #Flip spin at location
+    ClusterSpin = S[x,y] #The spin of the cluster
+    Cluster[x,y] = 1 #Add spin to cluster
+    for [a, b] in [ [(x+1)%n,y], [(x-1)%n,y], [x,(y+1)%n], [x,(y-1)%n] ]:
+        if Cluster[a,b] != 1:
+            tryadd(a, b, S, Cluster, ClusterSpin,P)
+    return S, Cluster
+
+def tryadd(a, b, S, Cluster, ClusterSpin,P):
+    if S[a,b] != ClusterSpin:
+        if np.random.choice([0,1],p=[1-P, P]) == 1:
+            growcluster(a, b, S, Cluster, P)
+    return S, Cluster
+
 def spin_flip_wolff(S,T,h):
     Cluster = np.zeros((n,n),dtype = int) #Matrix that says for every analog in S if it is in the cluster
     x, y = np.random.randint(0,n,size=2)
-    #First (random) spin is added to the cluster
-    Cluster[x,y] = 1
     #With a chance P, perimeter spins are added to the cluster
     P = 1 - np.exp(-2.*J/(kb*T))
-    #Initialize the cluster boundary and the new one
-    ClusterBndry = [ [x, y] ]
-    NewClusterBndry = [ ]
-    #Perimeter spins are added to the cluster or not
-    l = 0 #Counter
-    while (not (not ClusterBndry)) and np.any(Cluster == 0) :
-        for [x, y] in ClusterBndry:
-            for [a, b] in [ [1,0], [-1,0], [0,1], [0,-1] ]:
-                if Cluster[(x+a)%n,(y+b)%n] == 0: #Only test for coupling if spin is not yet coupled
-                    Cluster[(x+a)%n,(y+b)%n] = np.random.choice([0,1],p=[1-P, P])
-                    if Cluster[(x+a)%n,(y+b)%n] == 1: #Add new spins to cluster boundary
-                        NewClusterBndry.append([(x+a)%n,y+b])
-            l += 1 #Advance counter
-            if l == len(ClusterBndry): #When all old perimeter points are checked, advance to new perimeter
-                ClusterBndry = NewClusterBndry
-                NewClusterBndry = [ ]
-                l = 0
-    S[Cluster == 1] = -S[Cluster == 1] #Flip the whole cluster
+    S = growcluster(x, y, S, Cluster,P)[0]
     return S
-
 #################################################################################
 #################################################################################
 
