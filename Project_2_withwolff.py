@@ -23,7 +23,7 @@ kb = 1.          #Boltzmann constant
 h = 0.           #External magnetic field
 dh = 0.01        #Step size in h (for h variation only)
 Tc = 0.44*kb/J   #Predictad critical temperature
-T = 1.5    #Start emperature: low for T<J/
+T = 2.    #Start emperature: low for T<J/
 Tf = 10.*Tc       #Final temperature
 dT = 0.01         #Step size in temperature (for temperature variation only)
 sign = 1.         #Can be 1 or -1; determines sign of all spins in the initial matrix.
@@ -35,7 +35,7 @@ def J_eff(T):
     return(J_eff)
     
 #Computational parameters
-n = 32           #Number of spin sites in one direction
+n = 64           #Number of spin sites in one direction
 N = n**2         #Number of spin sites
 state = 0         #State of the computation: which output is wanted?
                   # 0 = visualization
@@ -54,7 +54,7 @@ if state == 1 or state == 3:
 elif state == 2:
     t_final = 1000*N   # Number of MCS steps
 else:
-    t_final = 2000 #Amount of time-steps (# of spins flipped)
+    t_final = 20000 #Amount of time-steps (# of spins flipped)
 
 #Fill an array uniform random with up and down (-1 and 1) spins
 S_init_rand = np.random.choice([-1,1],size=(n,n),p=[0.5,0.5])
@@ -107,14 +107,13 @@ def growcluster(x, y, S, Cluster,P):
     ClusterSpin = S[x,y] #The spin of the cluster
     Cluster[x,y] = 1 #Add spin to cluster
     for [a, b] in [ [(x+1)%n,y], [(x-1)%n,y], [x,(y+1)%n], [x,(y-1)%n] ]:
-        if Cluster[a,b] != 1:
+        if Cluster[a,b] != 1 and S[a,b] != ClusterSpin:
             tryadd(a, b, S, Cluster, ClusterSpin,P)
     return S, Cluster
 
 def tryadd(a, b, S, Cluster, ClusterSpin,P):
-    if S[a,b] != ClusterSpin:
-        if np.random.choice([0,1],p=[1-P, P]) == 1:
-            growcluster(a, b, S, Cluster, P)
+    if np.random.choice([0,1],p=[1-P, P]) == 1:
+        growcluster(a, b, S, Cluster, P)
     return S, Cluster
 
 def spin_flip_wolff(S,T,h):
