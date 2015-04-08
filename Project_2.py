@@ -25,7 +25,7 @@ dh = 0.01        #Step size in h (for h variation only)
 Tc = 0.44*kb/J   #Predictad critical temperature
 T = 0.01    #Start emperature: low for T<J/
 Tf = 10.*Tc       #Final temperature
-dT = 0.01         #Step size in temperature (for temperature variation only)
+dT = 0.005         #Step size in temperature (for temperature variation only)
 sign = 1.         #Can be 1 or -1; determines sign of all spins in the initial matrix.
 def tau(T):
     tau = kb*T/J     #Reduced temperature
@@ -37,7 +37,7 @@ def J_eff(T):
 #Computational parameters
 n = 32           #Number of spin sites in one direction
 N = n**2         #Number of spin sites
-state = 1         #State of the computation: which output is wanted?
+state = 4         #State of the computation: which output is wanted?
                   # 0 = visualization
                   # 1 = magnetization with T variation
                   # 2 = magnetization as function of time
@@ -47,9 +47,9 @@ state = 1         #State of the computation: which output is wanted?
 TorH = 0          #For variation: are we varying T or h?
                   # 0 = varying temperature
                   # 1 = varying external magnetic field
-wolff = 0         # 1 for using the Wolff algorithm; 0 for not using it.
-drawtime = 1   #Draw after every 'drawtime' spinflips (for state 0)
-temptime = 1000     #Amount of time-steps after which temperature is changed (relaxtion time)
+wolff = 1         # 1 for using the Wolff algorithm; 0 for not using it.
+drawtime = 10   #Draw after every 'drawtime' spinflips (for state 0)
+temptime = 100     #Amount of time-steps after which temperature is changed (relaxtion time)
 if state == 1 or state == 3 or state == 5 or state == 4:
     t_final = int(temptime*np.floor(Tf/dT))  #Amount of time-steps (# of spins flipped)
     print("t_final=", t_final)
@@ -184,6 +184,7 @@ elif state == 1:
     plt.xlabel('kb T/J')
     plt.ylabel('M')
     plt.plot(M_x,M)
+    plt.title('Magnetization as function of temperature')
     plt.show()
 
 #Plot magnetization as a function of time
@@ -250,7 +251,12 @@ elif state == 4:
     plt.xlabel('kb T/J')
     plt.ylabel('C')
     plt.plot(E_T,C)
+    #plot fit
+    fit = crit_exp(np.abs(E_T-Tc),C,0.01)
+    Tx = np.arange(0,Tf,dT)
+    plt.plot(Tx,np.abs(Tx-Tc)**-fit[0])
     plt.show()
+    print("critical exponent = ",fit[0], "error = ", fit[1])
 
 # Calculate the Magnetic Susceptibility as a function of temperature
 elif state == 5:
