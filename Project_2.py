@@ -15,7 +15,7 @@ import sys
 sys.setrecursionlimit(10000)
 
 #Definition of parameters
-global n, N, J, kb, tau, J_eff, t_final
+global J, kb, tau, J_eff, t_final, N
 
 #Physical constants
 J = 1.           #Coupling constant
@@ -23,9 +23,9 @@ kb = 1.          #Boltzmann constant
 h = 0.           #External magnetic field
 dh = 0.01        #Step size in h (for h variation only)
 Tc = 0.44*kb/J   #Predictad critical temperature
-T = 0.01    #Start emperature: low for T<J/
+T = 0.01          #Start Temperature: low for T<J/
 Tf = 10.*Tc       #Final temperature
-dT = 0.005         #Step size in temperature (for temperature variation only)
+dT = 0.07         #Step size in temperature (for temperature variation only)
 sign = 1.         #Can be 1 or -1; determines sign of all spins in the initial matrix.
 def tau(T):
     tau = kb*T/J     #Reduced temperature
@@ -35,22 +35,25 @@ def J_eff(T):
     return(J_eff)
     
 #Computational parameters
-n = 32           #Number of spin sites in one direction
+n = 4           #Number of spin sites in one direction
 N = n**2         #Number of spin sites
-state = 4         #State of the computation: which output is wanted?
+state = 6         #State of the computation: which output is wanted?
                   # 0 = visualization
                   # 1 = magnetization with T variation
                   # 2 = magnetization as function of time
                   # 3 = energy with T variation
                   # 4 = Specific heat with T variation
-                  # 5 = Magnetic Susceptibility 
+                  # 5 = Magnetic Susceptibility
+                  # 6 = finite size scaling
 TorH = 0          #For variation: are we varying T or h?
                   # 0 = varying temperature
                   # 1 = varying external magnetic field
-wolff = 1         # 1 for using the Wolff algorithm; 0 for not using it.
-drawtime = 10   #Draw after every 'drawtime' spinflips (for state 0)
-temptime = 100     #Amount of time-steps after which temperature is changed (relaxtion time)
-if state == 1 or state == 3 or state == 5 or state == 4:
+wolff = 0         # 1 for using the Wolff algorithm; 0 for not using it.
+drawtime = 1   #Draw after every 'drawtime' spinflips (for state 0)
+temptime = 1000     #Amount of time-steps after which temperature is changed (relaxtion time)
+num_fin = 3         # Run times for finite size scaling
+
+if state == 1 or state == 3 or state == 5 or state == 4 or state==6:
     t_final = int(temptime*np.floor(Tf/dT))  #Amount of time-steps (# of spins flipped)
     print("t_final=", t_final)
 elif state == 2:
@@ -81,7 +84,7 @@ def E_total(S):
 
 #Calculate the total magnetization of the system
 def M_total(S):
-    M_total = np.sum(S)/(N*1.)
+    M_total = np.sum(S)/(n*n*1.)
     return M_total
 
 ############
@@ -127,27 +130,12 @@ def spin_flip_wolff(S,T,h):
     S = growcluster(x, y, S, Cluster,P)[0]
     return S
 #################################################################################
+##################################OUTPUT FUNCTIONS########################################
+#################################################################################
 #################################################################################
 
-#Calculate the specific heat
-
-#Calculate all critical exponents
-#######Make a function for fitting
-
-#Fitting function for y = x^alpha
-def polyfit(x,alpha):
-    return x**alpha
-def crit_exp(x, y, alpha):
-    alpha, alpha_err = curve_fit(polyfit, x, y, alpha)
-    return alpha, alpha_err
-###############################################################################
-##################################MAIN RUN#####################################
-###############################################################################
-
-S = S_init #Initiate the data
-print("start")
 #Visualization of te spin matrix
-if state == 0:
+def visualization(S,T,h,wolff):
     S = S_init_rand
     plt.ion() # Set plot to animated
     #Make the plot
@@ -163,10 +151,11 @@ if state == 0:
             plt.draw()
 
 #Variation of nett magnetization with temperature or magnetic field
-elif state == 1:
+def magnetization(S,T,h,wolff,TorH,dT,dh):
     print("Calculating Magnetisation [T]")
     M = np.zeros((t_final/temptime), dtype = float)
     M_x = np.zeros((t_final/temptime),dtype = float)
+    print(T)
     for i in range(t_final):
         if wolff == 1:
             S = spin_flip_wolff(S,T,h)
@@ -184,11 +173,11 @@ elif state == 1:
     plt.xlabel('kb T/J')
     plt.ylabel('M')
     plt.plot(M_x,M)
-    plt.title('Magnetization as function of temperature')
     plt.show()
+    return M
 
 #Plot magnetization as a function of time
-elif state ==2:
+def magnetization_time(S,T,h,wolff):
     print("Calculating Magnetisation [time]")
     M = np.zeros((t_final/N), dtype = float)
     for i in range(t_final):
@@ -202,9 +191,10 @@ elif state ==2:
     plt.xlabel("MCS steps")
     plt.ylabel("E")
     plt.show()
-            
+    
+
 #Variation of total energy with temperature
-elif state == 3:
+def total_E(S,T,h,wolff,TorH,dT,dh):
     print("Calculating Total energy [T]")
     E = np.zeros((t_final/temptime), dtype = float)
     E_x = np.zeros((t_final/temptime),dtype = float)
@@ -223,11 +213,10 @@ elif state == 3:
     plt.xlabel('kb T/J')
     plt.ylabel('E')
     plt.plot(E_x,E)
-    plt.show()   
-
+    plt.show()
 
 #Plot the specific heat as a function of reduced temperature
-elif state == 4:
+def specific_heat(S,T,h):
     print("Calculating Specific heat [T]")
     E_T = np.zeros((t_final/temptime),dtype = float)
     C = np.zeros((t_final/temptime),dtype = float)
@@ -251,15 +240,10 @@ elif state == 4:
     plt.xlabel('kb T/J')
     plt.ylabel('C')
     plt.plot(E_T,C)
-    #plot fit
-    fit = crit_exp(np.abs(E_T-Tc),C,0.01)
-    Tx = np.arange(0,Tf,dT)
-    plt.plot(Tx,np.abs(Tx-Tc)**-fit[0])
     plt.show()
-    print("critical exponent = ",fit[0], "error = ", fit[1])
 
 # Calculate the Magnetic Susceptibility as a function of temperature
-elif state == 5:
+def magnetic_susceptibility(S,T,h,dT):
     print("Calculating Magnetic Susceptibility")
     M_T = np.zeros((t_final/temptime),dtype = float)
     Xi = np.zeros((t_final/temptime),dtype = float)
@@ -286,6 +270,35 @@ elif state == 5:
     plt.show()
 
 # Calculate the the correlation length as a function of temperature
+
+###############################################################################
+##################################MAIN RUN#####################################
+###############################################################################
+
+print("start")
+S = S_init #Initiate the data
+if state == 0:
+    visualization(S,T,h,wolff)
+elif state == 1:
+    magnetization(S,T,h,wolff,TorH,dT,dh)
+elif state ==2:    
+    magnetization_time(S,T,h,wolff)
+elif state == 3:
+    total_E(S,T,h,wolff,TorH,dT,dh)
+elif state == 4:
+    specific_heat(S,T,h)
+elif state == 5:
+    magnetic_susceptibility(S,T,h,dT)
+    
+elif state == 6: # finite size scaling
+    M_fin=np.zeros((num_fin,(t_final/temptime)),dtype=float)
+    M_T=np.arange((T+dT),Tf,dT)
+    for k in range(num_fin):
+        S=sign*np.ones((n,n),dtype = float)
+        print(n)
+        M_fin[k,:]=magnetization(S,T,h,wolff,TorH,dT,dh)
+        n = n**2
+
 
 #Measure stoptime
 stoptime = time.clock() - starttime
