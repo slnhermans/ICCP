@@ -35,9 +35,9 @@ def J_eff(T):
     return(J_eff)
     
 #Computational parameters
-n = 4           #Number of spin sites in one direction
+n = 32           #Number of spin sites in one direction
 N = n**2         #Number of spin sites
-state = 6         #State of the computation: which output is wanted?
+state = 7         #State of the computation: which output is wanted?
                   # 0 = visualization
                   # 1 = magnetization with T variation
                   # 2 = magnetization as function of time
@@ -48,10 +48,14 @@ state = 6         #State of the computation: which output is wanted?
 TorH = 0          #For variation: are we varying T or h?
                   # 0 = varying temperature
                   # 1 = varying external magnetic field
-wolff = 0         # 1 for using the Wolff algorithm; 0 for not using it.
+wolff = 1         # 1 for using the Wolff algorithm; 0 for not using it.
 drawtime = 1   #Draw after every 'drawtime' spinflips (for state 0)
 temptime = 1000     #Amount of time-steps after which temperature is changed (relaxtion time)
 num_fin = 5         # Run times for finite size scaling
+
+delta_r=0.02          #Shell width for correlation function
+b=10#(n/2.)/delta_r-((n/2.)/delta_r)%1 #Number of Correlation function bins
+n_plot = 1                         # Number of correlation plots
 
 if state == 1 or state == 3 or state == 5 or state == 4 or state==6:
     t_final = int(temptime*np.floor(Tf/dT))  #Amount of time-steps (# of spins flipped)
@@ -59,7 +63,7 @@ if state == 1 or state == 3 or state == 5 or state == 4 or state==6:
 elif state == 2:
     t_final = 1000*N   # Number of MCS steps
 else:
-    t_final = 2000 #Amount of time-steps (# of spins flipped)
+    t_final = 2 #Amount of time-steps (# of spins flipped)
 
 #Fill an array uniform random with up and down (-1 and 1) spins
 S_init_rand = np.random.choice([-1,1],size=(n,n),p=[0.5,0.5])
@@ -67,6 +71,7 @@ S_init = sign*np.ones((n,n),dtype = float)
 
 #Measure the start time
 starttime = time.clock()
+
 
 ###############################################################################
 ###########################Function definitions################################
@@ -131,16 +136,40 @@ def spin_flip_wolff(S,T,h):
     return S
     
 def corr(S):
-    x, y = np.random.randint(0,n,size=2)
+    x, y = np.floor(n/2.), np.floor(n/2.)
     dc = np.zeros((N,2),dtype = float)
+    cnt =0
     for i in range(n):
         for j in range(n):
-            if dc[i*j,0] == 0:
-                dc[i*j,0] = np.linalg.norm([x-i,y-j]) #Distance
-                dc[i*j,1] = S[x,y]*S[i,j]
-    a = np.zeros((np.unique(dc[:,0]),1),dtype = float)
-    for k in len(np.unique(dc[:,0])):
-        dc[:,0][dc[:,0] == np.unique(dc[k,0])]
+            if dc[cnt,0] == 0.:
+                dc[cnt,0] = np.linalg.norm([x-i,y-j]) #Distance
+                dc[cnt,1] = S[x,y]*S[i,j]
+                cnt += 1
+    ave = np.zeros((len(np.unique(dc[:,0])),1),dtype = float)
+    dist = np.zeros((len(np.unique(dc[:,0])),1),dtype = float)
+    for k in range(len(np.unique(dc[:,0]))):
+        samedist = np.where(dc[:,0] == np.unique(dc[k,0]))[0]
+        for l in range(len(samedist)):
+            ave[k] += dc[samedist[l],1]
+        ave[k] = ave[k]/len(samedist)
+        dist[k] = np.unique(dc[k,0])
+    return ave, dist
+
+#if state == 8:
+#          cnt = 0.
+#          plot_nr=np.floor(t_final/n_plot)
+#          k=cnt%(plot_nr)        
+#          if k==0:
+#            hist=np.histogram(cor_func(position,n,N)[1:N],bins=b,density=True)
+#            xhist=hist[1]
+#            yhist=np.concatenate(([0],hist[0]),axis=1)/(4*np.pi*np.multiply(hist[1],hist[1]))
+#            fig=plt.plot(xhist,yhist)
+#            if cnt==t_final:
+#                plt.xlabel('Distance between the particles')
+#                plt.ylabel('Density')
+#                plt.title('Correlation Function')
+#                plt.show()
+
 #################################################################################
 ##################################OUTPUT FUNCTIONS########################################
 #################################################################################
@@ -340,6 +369,13 @@ elif state == 6: # finite size scaling
         peak[k,:] = [np.nanmax(M_fin[k,:]), np.argmax(M_fin[k,:])] #Peakheights in first column, positions in second
         n = n*2
 
+elif state == 7:
+    ave, dist = corr(S)
+    hist = np.histogram(dist, bins = b, density = True, weights = ave)
+    xhist=hist[1]
+    yhist=np.concatenate(([0],hist[0]),axis=1)/(len(ave))
+    fig=plt.plot(xhist,yhist)
+    plt.show()
 #Measure stoptime
 stoptime = time.clock() - starttime
 print(stoptime)
