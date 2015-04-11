@@ -24,7 +24,7 @@ h = 0.           #External magnetic field
 dh = 0.01        #Step size in h (for h variation only)
 Tc = J/(kb*0.44)   #Predictad critical temperature
 T = 0.01          #Start Temperature: low for T<J/
-Tf = 0.99*Tc       #Final temperature
+Tf = 2.*Tc       #Final temperature
 dT = 0.02         #Step size in temperature (for temperature variation only)
 sign = 1.         #Can be 1 or -1; determines sign of all spins in the initial matrix.
 def tau(T):
@@ -35,9 +35,9 @@ def J_eff(T):
     return(J_eff)
     
 #Computational parameters
-n = 32           #Number of spin sites in one direction
+n = 64           #Number of spin sites in one direction
 N = n**2         #Number of spin sites
-state = 7         #State of the computation: which output is wanted?
+state = 0         #State of the computation: which output is wanted?
                   # 0 = visualization
                   # 1 = magnetization with T variation
                   # 2 = magnetization as function of time
@@ -48,13 +48,13 @@ state = 7         #State of the computation: which output is wanted?
 TorH = 0          #For variation: are we varying T or h?
                   # 0 = varying temperature
                   # 1 = varying external magnetic field
-wolff = 1         # 1 for using the Wolff algorithm; 0 for not using it.
-drawtime = 1   #Draw after every 'drawtime' spinflips (for state 0)
-temptime = 1000     #Amount of time-steps after which temperature is changed (relaxtion time)
+wolff = 0         # 1 for using the Wolff algorithm; 0 for not using it.
+drawtime = 100   #Draw after every 'drawtime' spinflips (for state 0)
+temptime = 2000     #Amount of time-steps after which temperature is changed (relaxtion time)
 num_fin = 5         # Run times for finite size scaling
 
 delta_r=0.02          #Shell width for correlation function
-b=10#(n/2.)/delta_r-((n/2.)/delta_r)%1 #Number of Correlation function bins
+b = 25#(n/2.)/delta_r-((n/2.)/delta_r)%1 #Number of Correlation function bins
 n_plot = 1                         # Number of correlation plots
 
 if state == 1 or state == 3 or state == 5 or state == 4 or state==6:
@@ -63,7 +63,7 @@ if state == 1 or state == 3 or state == 5 or state == 4 or state==6:
 elif state == 2:
     t_final = 1000*N   # Number of MCS steps
 else:
-    t_final = 2 #Amount of time-steps (# of spins flipped)
+    t_final = 10000 #Amount of time-steps (# of spins flipped)
 
 #Fill an array uniform random with up and down (-1 and 1) spins
 S_init_rand = np.random.choice([-1,1],size=(n,n),p=[0.5,0.5])
@@ -145,15 +145,15 @@ def corr(S):
                 dc[cnt,0] = np.linalg.norm([x-i,y-j]) #Distance
                 dc[cnt,1] = S[x,y]*S[i,j]
                 cnt += 1
-    ave = np.zeros((len(np.unique(dc[:,0])),1),dtype = float)
-    dist = np.zeros((len(np.unique(dc[:,0])),1),dtype = float)
-    for k in range(len(np.unique(dc[:,0]))):
-        samedist = np.where(dc[:,0] == np.unique(dc[k,0]))[0]
-        for l in range(len(samedist)):
-            ave[k] += dc[samedist[l],1]
-        ave[k] = ave[k]/len(samedist)
-        dist[k] = np.unique(dc[k,0])
-    return ave, dist
+    #ave = np.zeros((len(np.unique(dc[:,0])),1),dtype = float)
+    #dist = np.zeros((len(np.unique(dc[:,0])),1),dtype = float)
+    #for k in range(len(np.unique(dc[:,0]))):
+    #    samedist = np.where(dc[:,0] == np.unique(dc[k,0]))[0]
+    #    for l in range(len(samedist)):
+    #        ave[k] += dc[samedist[l],1]
+    #    ave[k] = ave[k]/len(samedist)
+    #    dist[k] = np.unique(dc[k,0])
+    return dc[:,1], dc[:,0]
 
 #if state == 8:
 #          cnt = 0.
@@ -347,6 +347,7 @@ print("start")
 S = S_init #Initiate the data
 if state == 0:
     visualization(S,T,h,wolff)
+    S_corr = S
 elif state == 1:
     magnetization(S,T,h,wolff,TorH,dT,dh)
 elif state ==2:    
@@ -370,10 +371,12 @@ elif state == 6: # finite size scaling
         n = n*2
 
 elif state == 7:
-    ave, dist = corr(S)
+    ave, dist = corr(S_corr)
+    ave_norm = corr(S_init)[0]
+    hist_norm = np.histogram(dist, bins = b, density = True, weights = ave_norm)
     hist = np.histogram(dist, bins = b, density = True, weights = ave)
     xhist=hist[1]
-    yhist=np.concatenate(([0],hist[0]),axis=1)/(len(ave))
+    yhist=np.concatenate(([0],hist[0]/hist_norm[0]),axis=1)
     fig=plt.plot(xhist,yhist)
     plt.show()
 #Measure stoptime
