@@ -6,17 +6,20 @@
 \usepackage{natbib}
 \bibliographystyle{plain}
 \begin{document}
-\begin{itemize}
-
-\item For J greater, smaller, equal to zero we have ferromagnetic, anti-ferromagnetic etc. behaviour.
-\item Compare extracted parameters with (experimental and computational) literature!
-\end{itemize}
+\begin{flushright}
+\noindent\small \textbf{Delft University of Technology}\\
+International Course in Computational Physics\\
+Supervisor: Dr. J.M. Thijsen \& Dr. A. Akhmerov
+\end{flushright}
+\vspace*{5mm}
+\begin{center}
+\large{\textbf{Monte Carlo simulations of the 2-Dimensional Ising model}}\\
+\normalsize{Emma C. Gerritse \& Sophie L.N. Hermans}
+\end{center}
 \begin{abstract}
-This is the abstract.
+The Ising model in two dimensions has been simulated using Monte Carlo Methods. Both the Metropolis algorithm (a Markov Chain method) and the Wolff algorithm (a cluster method) were used. Physical properties of the Ising model have been calculated at different system sizes, and their values have been extracted with the help of Finite Scaling Methods.
 \end{abstract}
 \tableofcontents
-
-\section{Introduction}
 
 \section{The Ising model} The Ising model is a theoretical model of a ferromagnetic system with nearest neighbour interactions. It consists of $N$ particles with spin up or down. The nature of the interaction between these spins is described by the coupling constant $J$. If this constant is positive, parallel neighbour spins have a lower energy than anti-parallel neighbours, and the system is ferromagnetic. If $J$ is negative, this is the other way round, and the system is antiferromagnetic. At $J = 0$ a system of non-interacting spins is described. In addition to the force between the particles, an external magnetic field $h$ can be applied.
 
@@ -42,14 +45,19 @@ A different method to simulate the Ising model makes use of clusters. This metho
 \end{enumerate}
 
 \section{System parameters}
-From a simple model like the Ising model, certain system parameters can be extracted. They change with temperature and magnetization. The Ising model undergoes a phase transition along a certain line along the temperature-magnetization surface. First, we have looked at the critical temperature $T_C$ for zero magnetization, and then we looked at the critical magnetization at a certain finite temperature.
+From a simple model like the Ising model, certain physical system parameters can be extracted. They change with temperature and magnetization.
 
+\subsection{Critical temperature}
+In the Ising model, a phase transition takes place once the temperature of the system reaches a certain critical temperature $T_C$. Above this temperature, the total magnetization stays zero on average. Below this temperature, the magnetization converges sharply towards either -1 or +1, where all of the spins are pointing in the down or up direction respectively. This critical temperature can be calculated analytically, where the temperature is a function of the coupling constant\cite{Onsager44}:
+\begin{equation}\label{eq:crittemp}
+T_C = \frac{J}{0,44 k_b}
+\end{equation}
+If we have a coupling constant of 1, equation \ref{eq:crittemp} tells us that the critical temperature should have a value of 2,3K. The critical temperature can also be extracted from Ising model simulations. We start the system at a temperature well below the critical temperature. We allow it to relax, en then we increase the temperature  by an amount $\Delta T$. We keep doing this until the magnetization suddenly flips from a value of $\pm 1$ to something close to zero. Our \emph{Metropolis Monte Carlo} simulations of the magnetization for a system of 256 particles tell us that the critical temperature is ... , as can be seen in figure \ref{fig:magnetiz} below.
 
-\subsection{Magnetic susceptibility}
+\subsection{Physical properties}
 \begin{equation}
 \chi_m = \left(\frac{\partial m}{\partial H}\right)_T
 \end{equation}
-\subsection{Critical components}
 Magnetic susceptibility: from the exact solution, $\gamma = 7/4$. \cite{CompPhys}
 \begin{equation}
 \chi_m(T) \propto |T - T_c|^{-\gamma}
@@ -70,8 +78,6 @@ Magnetization with varying magnetic field at $T_c$: from the exact solution, $\d
 \begin{equation}
 m(H)|_{T_c} \propto H^{1/\delta}
 \end{equation}
-
-\section{Results}
 
 \section{Conclusions and discussion}
 
