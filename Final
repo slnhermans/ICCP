@@ -1,0 +1,483 @@
+#Delft University of Technology
+#International Course in Computational Physics
+#Assignment 2: Ising model
+#Authors: Emma C. Gerritse and Sophie L. N. Hermans
+###############################################################################
+#Program for simulating the nearest neighbour two-dimmensional Ising model on a
+#square lattice using the Metropolis Monte Carlo technique.
+###############################################################################
+
+import numpy as np
+from scipy.optimize import curve_fit
+import matplotlib.pyplot as plt
+import time
+import sys
+sys.setrecursionlimit(10000)
+
+#Definition of parameters
+global J, kb, tau, J_eff #, t_final, N, n, temptime
+
+#Physical constants
+J = 1.           #Coupling constant
+kb = 1.          #Boltzmann constant
+h = 0.           #External magnetic field
+dh = 0.01        #Step size in h (for h variation only)
+Tc = J/(kb*0.44)   #Predictad critical temperature
+T = 0.01*Tc         #Start Temperature: low for T<J/
+Tf = 1.5*Tc       #Final temperature
+dT = 0.02        #Step size in temperature (for temperature variation only)
+sign = 1.         #Can be 1 or -1; determines sign of all spins in the initial matrix.
+def tau(T):
+    tau = kb*T/J     #Reduced temperature
+    return tau
+def J_eff(T):
+    J_eff = J/(kb*T) #Effective coupling constant
+    return(J_eff)
+    
+#Computational parameters
+n = 32           #Number of spin sites in one direction
+N = n**2         #Number of spin sites
+
+
+state = 1         #State of the computation: which output is wanted?
+                  # 0 = visualization
+                  # 1 = magnetization with T variation
+                  # 2 = magnetization as function of time
+                  # 3 = energy with T variation
+                  # 4 = Specific heat with T variation
+                  # 5 = Magnetic Susceptibility
+                  # 6 = finite size scaling
+                  
+fin_state = 0     #State of finite scaling: which critical exponent
+                  # 0 = specific heat
+                  # 1 = magnetic susceptibility
+                  
+TorH = 1          #For variation: are we varying T or h?
+                  # 0 = varying temperature
+                  # 1 = varying external magnetic field
+                  
+wolff = 0         # 1 for using the Wolff algorithm; 0 for not using it.
+
+drawtime = 1      #Draw after every 'drawtime' spinflips (for state 0)
+temptime = 3.*N   #Amount of time-steps after which temperature is changed (relaxtion time)
+num_fin = 12      # Run times for finite size scaling
+
+
+b = 50            #Number of Correlation function bins
+
+#Determining t_final for the different functions (number of spins/clusters flipped)
+if state == 1 or state == 3 or state == 5 or state == 4 or state==6:
+    t_final = int(temptime*np.floor((Tf-T)/dT))  
+    print("t_final=", t_final)
+elif state == 2:
+    t_final = 1000*N   
+else:
+    t_final = 1000 
+
+#Initializing a lattice, either random or determined
+S_init_rand = np.random.choice([-1,1],size=(n,n),p=[0.5,0.5])
+S_init = sign*np.ones((n,n),dtype = float)
+
+#Measure the start time
+starttime = time.clock()
+
+
+###############################################################################
+###########################Function definitions################################
+###############################################################################
+
+#Calculate the total energy of the system
+def E_total(S,n,N):
+    E_total = 0
+    cnt = 0
+    for i in range(N):
+        E_total -= h * S[i%n,cnt/n] #Due to magnetic field
+        E_total -= J * S[i%n,cnt/n] * (S[(i%n+1)%n,cnt/n] + S[i%n,(cnt/n+1)%n]) #Due to spin-spin interaction
+        cnt += 1
+    return E_total
+
+#Calculate the total magnetization of the system
+def M_total(S,n):
+    M_total = np.sum(S)/(n*n*1.)
+    return M_total
+
+############
+#Flip one spin from -1 to 1 and see if energy gets higher/lower
+#If lower, keep it. If higher, keep it with probability P = exp(-beta(Hj-Hi))
+def spin_flip(S,T,h,n,N):
+    x, y = np.random.randint(0,n,size=2)
+    E_old = -h * S[x,y] - J * S[x,y] * (S[(x+1)%n,y] + S[(x-1)%n,y] + S[x,(y+1)%n] + S[x,(y-1)%n] )
+    E_new = -h * -S[x,y] - J * -S[x,y] * (S[(x+1)%n,y] + S[(x-1)%n,y] + S[x,(y+1)%n] + S[x,(y-1)%n] )
+    dE = E_new - E_old
+    M_old = S[x,y]
+    if dE <= 0:
+        S[x,y] = -S[x,y]
+    else:
+        P = np.exp(-dE/(kb*T))
+        S[x,y] = S[x,y] * np.random.choice([-1,1],p=[P, 1-P])     
+    dM = (S[x,y]-M_old)
+    dE = np.abs(dE*(S[x,y]-M_old)*0.5) 
+    return S, dE, dM
+
+#################################################################################
+#################################################################################
+#Flip one spin from -1 to 1 and see if energy gets higher/lower
+#If lower, keep it. If higher, keep it with probability P = exp(-beta(Hj-Hi))
+#If lower, keep it. If higher, keep it with probability P = exp(-beta(Hj-Hi))
+def growcluster(x, y, S, Cluster,P):
+    S[x,y] = -S[x,y] #Flip spin at location
+    ClusterSpin = S[x,y] #The spin of the cluster
+    Cluster[x,y] = 1 #Add spin to cluster
+    for [a, b] in [ [(x+1)%n,y], [(x-1)%n,y], [x,(y+1)%n], [x,(y-1)%n] ]:
+      if Cluster[a,b] != 1 and S[a,b] != ClusterSpin:
+            tryadd(a, b, S, Cluster, ClusterSpin,P)
+    return S, Cluster
+
+def tryadd(a, b, S, Cluster, ClusterSpin,P):
+    if np.random.choice([0,1],p=[1-P, P]) == 1:
+        growcluster(a, b, S, Cluster, P)
+    return S, Cluster
+
+def spin_flip_wolff(S,T,h):
+    Cluster = np.zeros((n,n),dtype = int) #Matrix that says for every analog in S if it is in the cluster
+    x, y = np.random.randint(0,n,size=2)
+    #With a chance P, perimeter spins are added to the cluster
+    P = 1 - np.exp(-2.*J/(kb*T))
+    S = growcluster(x, y, S, Cluster,P)[0]
+    return S
+    
+#################################################################################
+##################################CORRELATION FUNCTION########################################
+#################################################################################
+#################################################################################
+
+# Correlation function
+def corr(S):
+    x, y = np.floor(n/2.), np.floor(n/2.)
+    dc = np.zeros((N,3),dtype = float)
+    cnt =0
+    for i in range(n):
+        for j in range(n):
+            if dc[cnt,0] == 0.:
+                dc[cnt,0] = np.linalg.norm([x-i,y-j]) #Distance
+                dc[cnt,1] = S[x,y]*S[i,j]
+                dc[cnt,2] = S[i,j]
+                cnt += 1
+    A = np.zeros((b+1,4),dtype = float)
+    max_dist = np.max(dc[:,0])
+    b_width = max_dist/b
+    dist = 0
+    k = 0
+    while dist < max_dist:
+        fill1 = np.where(dc[:,0]>=dist)
+        fill2 = np.where(dc[:,0]<=dist+b_width)
+        fill = np.intersect1d(fill1[0],fill2[0])
+        A[k,0] = dist
+        A[k,1] = np.sum(dc[:,1][fill])/len(fill)
+        A[k,2] = np.sum(dc[:,2][fill])*S[x,y]/len(fill)
+        A[k,3] = A[k,1]
+        dist += b_width
+        k += 1
+    return A[:,0], A[:,3]
+
+#################################################################################
+##################################FITTING FUNCTION########################################
+#################################################################################
+#################################################################################
+
+#Fitting function for y = beta*x^alpha + gamma
+def polyfit(x,alpha,beta,gamma):
+    return beta*x**alpha + gamma
+
+def crit_exp(x, y, alpha):
+    alpha, alpha_err = curve_fit(polyfit, x, y, alpha)
+    return alpha, alpha_err
+
+#################################################################################
+##################################OUTPUT FUNCTIONS########################################
+#################################################################################
+#################################################################################
+
+#Visualization of te spin matrix
+def visualization(S,T,h,wolff):
+    S = S_init_rand
+    plt.ion() # Set plot to animated
+    #Make the plot
+    ax = plt.axes()
+    data, = [plt.matshow(S, fignum=0)]
+    for i in range(t_final):
+        if wolff == 1:
+            S = spin_flip_wolff(S,T,h)
+        else:    
+            S = spin_flip(S,T,h,n,N)[0]
+        data.set_data(S)
+        if i%drawtime == 0:
+            plt.draw()
+    return S
+
+#Variation of nett magnetization with temperature or magnetic field
+def magnetization(S,T,h,wolff,TorH,dT,dh):
+    print("Calculating Magnetisation [T]")
+    M = np.zeros((t_final/temptime), dtype = float)
+    M_x = np.zeros((t_final/temptime),dtype = float)
+    print(T)
+    for i in range(t_final):
+        if wolff == 1:
+            S = spin_flip_wolff(S,T,h)
+        else:    
+            S = spin_flip(S,T,h,n,N)[0]
+        if (i+1)%temptime == 0:
+            M[i/temptime] = M_total(S,n)
+            if TorH == 0:
+                M_x[i/temptime] = tau(T)
+                T += dT
+            elif TorH == 1:
+                M_x[i/temptime] = h
+                h += dh
+
+    plt.xlabel('kb T/J')
+    plt.ylabel('M')
+    plt.plot(M_x,M)
+    return M
+
+#Plot magnetization as a function of time
+def magnetization_time(S,T,h,wolff):
+    print("Calculating Magnetisation [time]")
+    M = np.zeros((t_final/N), dtype = float)
+    for i in range(t_final):
+        if wolff == 1:
+            S = spin_flip_wolff(S,T,h)
+        else:    
+            S = spin_flip(S,T,h,n,N)[0]
+        if i%10*N==0:
+            M[i/N]=M_total(S,n)
+    plt.plot(M)
+    plt.xlabel("MCS steps")
+    plt.ylabel("E")
+    plt.show()
+    
+
+#Variation of total energy with temperature
+def total_E(S,T,h,wolff,TorH,dT,dh):
+    print("Calculating Total energy [T]")
+    E = np.zeros((t_final/temptime), dtype = float)
+    E_x = np.zeros((t_final/temptime),dtype = float)
+    for i in range(t_final):
+        if wolff == 1:
+            S = spin_flip_wolff(S,T,h)
+        else:    
+            S = spin_flip(S,T,h,n,N)[0]
+        if (i+1)%temptime == 0:
+            if TorH == 0:
+                E_x[i/temptime] = tau(T)
+                E[i/temptime] = E_total(S,n,N)/N
+                T += dT
+            elif TorH == 1:
+                E_x[i/temptime] = h
+                E[i/temptime] = E_total(S,n,N)/N
+                h += dh
+    plt.xlabel('kb T/J')
+    plt.ylabel('E')
+    plt.plot(E_x,E)
+    plt.show()
+
+#Plot the specific heat as a function of reduced temperature
+def specific_heat(S,T,h,N,n,t_final,temptime):
+    print("Calculating Specific heat [T]")
+    E_T = np.zeros((t_final/temptime),dtype = float)
+    C = np.zeros((t_final/temptime),dtype = float)
+    E_temp = E_total(S,n,N)
+    E_avg = 0
+    E2_avg = 0
+    for i in range(t_final):
+        S, dE, dM = spin_flip(S,T,h,n,N)
+        E_avg += (E_temp)
+        E2_avg += (E_temp)**(2)
+        E_temp += dE
+        if (i+1)%temptime == 0:
+            fluc_E2 = E2_avg/temptime - (E_avg/temptime)**2
+            E_T[i/temptime] = tau(T)
+            C[i/temptime] = fluc_E2/(N*kb*(E_T[i/temptime])**(2))   
+            T += dT
+            E2_avg = 0
+            E_avg = 0
+    plt.title("Specific heat as a function of reduced Temperature")
+    plt.xlabel('kb T/J')
+    plt.ylabel('C')
+    plt.plot(E_T,C)
+    return C
+
+# Calculate the Magnetic Susceptibility as a function of temperature
+def magnetic_susceptibility(S,T,h,dT,N,n,t_final,temptime):
+    print("Calculating Magnetic Susceptibility")
+    M_T = np.zeros((t_final/temptime),dtype = float)
+    Xi = np.zeros((t_final/temptime),dtype = float)
+    M = np.zeros((t_final/temptime),dtype = float)
+    M_temp = M_total(S,n)
+    M_avg = 0
+    M2_avg = 0
+    for i in range(t_final):
+        S, dE, dM = spin_flip(S,T,h,n,N)
+        M_temp += dM
+        M2_avg += (M_temp)**(2)
+        M_avg += (M_temp)
+        if (i+1)%temptime == 0:
+            fluc_M2 = M2_avg/temptime - (M_avg/temptime)**2   
+            M[i/temptime] = M_temp
+            M_T[i/temptime] = tau(T)
+            Xi[i/temptime]= fluc_M2/(kb*T)    
+            T += dT
+            M2_avg = 0
+            M_avg = 0
+    plt.title("Magnetic Susceptibility vs temperature")
+    plt.xlabel('T')
+    plt.ylabel('Chi')
+    plt.plot(M_T,Xi)
+    return Xi
+
+# Calculate the the correlation length as a function of temperature
+def correlation_length(S,T,h):
+    print("Calculating Correlation Length [T]")
+    Corr_T = np.zeros((t_final/temptime),dtype = float)
+    Corr = np.zeros((t_final/temptime),dtype = float)
+    for i in range(t_final):
+        if wolff == 1:
+            S = spin_flip_wolff(S,T,h)
+        else:    
+            S = spin_flip(S,T,h,n,N)[0]
+        if TorH == 0:
+            E_x[i/temptime] = tau(T)
+            T += dT
+        elif TorH == 1:
+            E_x[i/temptime] = h
+            h += dh
+        if (i+1)%temptime == 0:
+            E_T[i/temptime] = tau(T)
+            Corr[i/temptime] = corr()
+            T += dT
+    plt.title("Specific heat as a function of reduced Temperature")
+    plt.xlabel('kb T/J')
+    plt.ylabel('C')
+    plt.plot(E_T,C)
+    return C
+
+###############################################################################
+##################################FINITE SIZE SCALING#####################################
+###############################################################################
+
+# Perform Finite scaling on the specific heat or magnetic susceptibility
+
+def finite_size(S,T,h,num_fin,fin_state,t_final,temptime):
+
+    #Starting the system size variation
+    n=6
+    N=n*n
+    
+    A_fin=np.zeros((num_fin,(t_final/temptime)),dtype=float)
+    M_T=np.arange((T+dT),Tf,dT)
+    peak = np.zeros((num_fin,4),dtype = float)
+    
+    plt.ion()
+    
+    for k in range(num_fin):
+
+        #Initializing the system
+        
+        S=sign*np.ones((n,n),dtype = float)
+        if fin_state == 0:
+            A_fin[k,:] = specific_heat(S,T,h,N,n,t_final,temptime)
+        elif fin_state == 1:
+            A_fin[k,:] = magnetic_susceptibility(S,T,h,dT,N,n,t_final,temptime)
+
+        #Extracting the peaks    
+        peak[k,:2] = [np.nanmax(A_fin[k,:]), np.argmax(A_fin[k,:])] #Peakheights in first column, positions in second
+        peak[k,2] = n
+        peak[k,3] = M_T[peak[k,1]]
+
+        #Updating the computational parameters
+        n = n+2
+        N = n*n
+        temptime = 3.*N
+        t_final = int(temptime*np.floor((Tf-T)/dT))
+        
+    plt.ioff()
+
+    # Initial guesses for fitting parameters
+    if fin_state == 0:
+        fit_guess_h = [0.01,0.01,50.]
+        fit_guess_p = [-1.,1.,3.]
+    elif fin_state == 1:
+        fit_guess_h = [7./4.,1.,1.]
+        fit_guess_p = [-1.,1.,2.]
+        
+    # Making the fits
+        # Peak Height
+    plt.figure(2)
+    plt.ion()
+    plt.title("Peak Heights vs System Length")
+    plt.xlabel("System Length [n]")
+    plt.ylabel("Peak Height")
+    plt.plot(peak[:,2],peak[:,0])
+    
+    fit_h = crit_exp(peak[:,2],peak[:,0],fit_guess_h)
+    fit_par_h = fit_h[0]
+    plt.plot(peak[:,2],fit_par_h[1]*peak[:,2]**fit_par_h[0]+fit_par_h[2])
+
+    
+    print("critical exponent (height) = ",fit_par_h)
+    plt.ioff()
+    
+        # Peak Position
+    plt.figure(3)
+    plt.ion()
+    plt.title("Peak Position vs System Length")
+    plt.xlabel("System Length [n]")
+    plt.ylabel("Peak Position")
+    plt.plot(peak[:,2],peak[:,3])
+    
+    fit_p = crit_exp(peak[:,2],peak[:,3],fit_guess_p)
+    fit_par_p=fit_p[0]
+    plt.plot(peak[:,2],fit_par_p[1]*peak[:,2]**fit_par_p[0]+fit_par_p[2])
+    
+    print("critical exponent (position) = ",fit_par_p)
+    plt.ioff()
+    plt.show()    
+
+###############################################################################
+##################################MAIN RUN#####################################
+###############################################################################
+
+print("start")
+S = S_init #Initiate the data
+
+
+if state == 0:
+    S_corr = visualization(S,T,h,wolff)
+    plt.figure(2)
+    plt.plot(corr(S_corr)[0], corr(S_corr)[1])
+    plt.title("Correlation function")
+    plt.ylabel("Correlation")
+    plt.xlabel("Distance between sites")
+    plt.show()
+elif state == 1:
+    magnetization(S,T,h,wolff,TorH,dT,dh)
+    plt.show()
+elif state ==2:    
+    magnetization_time(S,T,h,wolff)
+elif state == 3:
+    total_E(S,T,h,wolff,TorH,dT,dh)
+elif state == 4:
+    C = specific_heat(S,T,h,N,n,t_final,temptime)
+    plt.show()
+elif state == 5:
+    magnetic_susceptibility(S,T,h,dT,N,n,t_final,temptime)
+    plt.show()  
+elif state == 6: 
+    finite_size(S,T,h,num_fin,fin_state,t_final,temptime)
+
+
+    
+#Measure stoptime
+stoptime = time.clock() - starttime
+print(stoptime)
+
